@@ -1,0 +1,52 @@
+# Python & Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.ipynb_checkpoints/
+*.ipynb
+*.egg-info/
+build/
+dist/
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.npm/
+
+# Large Archives, Datasets & Local DBs
+*.zip
+*.tar.gz
+*.db
+*.sqlite3
+06_capstone/models/v_*/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# macOS & OS files
+.DS_Store
+Thumbs.db
+
+# Legacy Workshop & Design Skill Folders
+00_foundations/
+01_linear_regression/
+02_logistic_regression/
+03_random_forest/
+04_xgboost/
+05_hierarchical_clustering/
+06_capstone/
+07_bonus_deep_dive/
+apple-design-skill/
+setup.ps1
+setup.sh
+
