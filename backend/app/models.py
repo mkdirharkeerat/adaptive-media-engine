@@ -32,6 +32,11 @@ class UserPreference(Base):
     viewing_context = Column(JSON, default=list, nullable=False)
     intensity = Column(Float, default=0.5, nullable=False)
     language_mix_ok = Column(Boolean, default=True, nullable=False)
+    preferred_genres = Column(JSON, default=list, nullable=True)
+    pacing_bands = Column(JSON, default=list, nullable=True)
+    pacing_by_mode = Column(JSON, default=dict, nullable=True)
+    content_modes = Column(JSON, default=list, nullable=True)
+    content_intent = Column(JSON, default=list, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     user = relationship("User", back_populates="preferences")

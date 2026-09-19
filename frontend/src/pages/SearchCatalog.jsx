@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Film, Tv, BookOpen, Sparkles, ChevronRight, PlusCircle, Check } from 'lucide-react';
-import { api } from '../api/client';
 import { Link } from 'react-router-dom';
+import { api } from '../api/client';
 
 export const SearchCatalog = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loggedItems, setLoggedItems] = useState(new Set());
+  const [mediaTypeFilter, setMediaTypeFilter] = useState('all');
+  const [loggingId, setLoggingId] = useState(null);
 
   useEffect(() => {
     fetchInitialCatalog();
@@ -17,7 +18,7 @@ export const SearchCatalog = () => {
   const fetchInitialCatalog = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/media/search?limit=30');
+      const res = await api.get('/media/search?limit=36');
       setResults(res.data || []);
     } catch (err) {
       console.error('Failed to load catalog:', err);
@@ -37,10 +38,13 @@ export const SearchCatalog = () => {
   };
 
   const handleSearch = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoading(true);
     try {
-      const res = await api.get(`/media/search?q=${encodeURIComponent(query)}`);
+      const endpoint = query.trim()
+        ? `/media/search?q=${encodeURIComponent(query)}`
+        : '/media/search?limit=36';
+      const res = await api.get(endpoint);
       setResults(res.data || []);
     } catch (err) {
       console.error('Search failed:', err);
@@ -49,123 +53,198 @@ export const SearchCatalog = () => {
     }
   };
 
-  const getMediaIcon = (type) => {
-    switch (type) {
-      case 'movie':
-        return <Film className="w-3.5 h-3.5 text-[#0A84FF]" />;
-      case 'tv':
-        return <Tv className="w-3.5 h-3.5 text-[#5E5CE6]" />;
-      case 'book':
-        return <BookOpen className="w-3.5 h-3.5 text-[#FF9F0A]" />;
-      default:
-        return <Sparkles className="w-3.5 h-3.5 text-[#30D158]" />;
+  const quickLog = async (e, item) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLoggingId(item.id);
+    try {
+      await api.post('/history', {
+        media_item_id: item.id,
+        completion_pct: 100,
+        rewatch_count: 1,
+        rating: 4.5,
+      });
+      setLoggedItems((prev) => new Set([...prev, item.id]));
+    } catch (err) {
+      console.error('Quick log failed:', err);
+    } finally {
+      setLoggingId(null);
     }
   };
 
+  const filteredResults = results.filter((item) => {
+    if (mediaTypeFilter === 'all') return true;
+    return item.media_type === mediaTypeFilter;
+  });
+
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-8 py-10 space-y-8">
-      {/* Header & Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Browse Seed Catalog
+    <div className="w-full bg-surface min-h-screen">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 flex flex-col gap-10">
+        {/* Ghost Search Header Area (Editorial Centered Layout) */}
+        <div className="flex flex-col items-center text-center max-w-3xl mx-auto w-full pt-4 space-y-4">
+          <span className="font-meta-tag text-meta-tag uppercase text-gilded-amber tracking-widest font-semibold">
+            ADAPTIVE MEDIA ENGINE · CATALOG
+          </span>
+          <h1 className="font-headline-lg text-4xl sm:text-5xl font-serif text-on-surface tracking-tight">
+            Search Adaptive Media Engine
           </h1>
-          <p className="text-sm text-apple-textSecondary mt-1">
-            Search 20+ dense-embedded seed items or log new signals into your taste centroid.
+          <p className="font-body-md text-body-md text-secondary max-w-lg leading-relaxed">
+            Search dense-embedded items across cinematic narratives, television series, and literary masterworks.
           </p>
-        </div>
 
-        <form onSubmit={handleSearch} className="w-full md:w-80 relative">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search titles, genres, themes..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-full bg-white/[0.06] border border-white/15 text-xs text-white placeholder-apple-textTertiary focus:outline-none focus:border-apple-blue transition-colors"
-          />
-          <Search className="w-4 h-4 text-apple-textTertiary absolute left-3.5 top-3" />
-        </form>
-      </div>
+          {/* Full-width Ghost Search Input */}
+          <form onSubmit={handleSearch} className="w-full pt-4">
+            <div className="relative flex items-center border-b-2 border-outline-variant focus-within:border-primary transition-colors py-2">
+              <span className="material-symbols-outlined text-[24px] text-secondary mr-3 pointer-events-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search movies, shows, books, directors, themes…"
+                className="w-full bg-transparent font-serif italic text-xl sm:text-2xl text-on-surface placeholder:text-outline focus:outline-none"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery('');
+                    fetchInitialCatalog();
+                  }}
+                  className="p-1 text-secondary hover:text-on-surface"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              )}
+            </div>
+          </form>
 
-      {/* Catalog Grid */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} className="apple-card h-52 rounded-squircle-xl animate-pulse" />
-          ))}
-        </div>
-      ) : results.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {results.map((item) => {
-            const isLogged = loggedItems.has(item.id);
-            return (
-              <div
-                key={item.id}
-                className="apple-card p-6 rounded-squircle-xl flex flex-col justify-between group transition-all"
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2 pt-3">
+            {[
+              { id: 'all', label: 'All Media' },
+              { id: 'movie', label: 'Movies' },
+              { id: 'tv', label: 'TV Shows' },
+              { id: 'book', label: 'Books' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setMediaTypeFilter(tab.id)}
+                className={`px-4 py-1.5 rounded-full font-meta-tag text-meta-tag uppercase transition-all ${
+                  mediaTypeFilter === tab.id
+                    ? 'bg-primary text-on-primary font-bold shadow-sm'
+                    : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-outline-variant/60'
+                }`}
               >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-white/[0.08] text-white border border-white/10">
-                      {getMediaIcon(item.media_type)}
-                      <span>{item.media_type}</span>
-                    </span>
-                    {item.raw_metadata?.year && (
-                      <span className="text-xs text-apple-textTertiary font-mono">
-                        {item.raw_metadata.year}
-                      </span>
-                    )}
-                  </div>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-                  <Link to={`/media/${item.id}`} className="block group/title">
-                    <h3 className="text-base font-bold text-white group-hover/title:text-apple-blue transition-colors mb-1.5 flex items-center justify-between">
-                      <span>{item.title}</span>
-                      <ChevronRight className="w-4 h-4 text-apple-textTertiary group-hover/title:text-apple-blue group-hover/title:translate-x-1 transition-all" />
-                    </h3>
-                  </Link>
+        {/* Catalog Grid */}
+        <div className="pt-6">
+          <div className="flex items-center justify-between pb-4 border-b border-outline-variant/40 mb-6">
+            <span className="font-meta-tag text-meta-tag uppercase text-on-surface-variant">
+              Showing {filteredResults.length} Ingested Titles
+            </span>
+            <span className="font-meta-tag text-meta-tag uppercase text-secondary">
+              Zero Engagement Traps
+            </span>
+          </div>
 
-                  <p className="text-xs text-apple-textPrimary/80 line-clamp-2 leading-relaxed mb-3">
-                    {item.synopsis}
-                  </p>
+          {loading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <div key={n} className="bg-surface-container-low h-72 rounded-[2px] animate-pulse border border-outline-variant/40" />
+              ))}
+            </div>
+          ) : filteredResults.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+              {filteredResults.map((item) => {
+                const isLogged = loggedItems.has(item.id);
+                const isLogging = loggingId === item.id;
+                const type = item.media_type;
+                const year = item.raw_metadata?.year;
+                const posterUrl = item.raw_metadata?.poster_url;
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {item.sub_genres?.slice(0, 2).map((sg, idx) => (
-                      <span key={idx} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-apple-indigo/15 text-[#A5A3F6] border border-apple-indigo/25">
-                        {sg}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-4 mt-4 border-t border-white/[0.08] flex items-center justify-between">
-                  <Link
-                    to={`/media/${item.id}`}
-                    className="text-xs text-apple-blue hover:underline font-semibold flex items-center space-x-1"
+                return (
+                  <div
+                    key={item.id}
+                    className="group flex flex-col justify-between bg-surface-container-low p-2 rounded-[2px] border border-outline-variant/40 hover:shadow-tactile-hover transition-all duration-300 hover:-translate-y-1.5"
                   >
-                    <span>View & Log Depth</span>
-                  </Link>
+                    <Link to={`/media/${item.id}`} className="block relative aspect-[2/3] overflow-hidden bg-primary rounded-[2px] shadow-sm">
+                      {/* Case Tag */}
+                      <div className="absolute top-1.5 left-2 z-20 px-1.5 py-0.5 bg-obsidian-surface/90 text-linen-white font-meta-tag text-[9px] uppercase tracking-wider rounded-sm border border-white/10">
+                        {type === 'movie' ? '4K UHD' : type === 'tv' ? 'TV SERIES' : 'HARDBACK'}
+                      </div>
 
-                  {isLogged ? (
-                    <span className="inline-flex items-center space-x-1 text-[11px] text-apple-green font-mono">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>In History</span>
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-apple-textTertiary font-mono">
-                      Not logged
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                      {posterUrl ? (
+                        <img
+                          src={posterUrl}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col justify-between p-3 bg-stone-900 text-linen-white">
+                          <span className="font-meta-tag text-[9px] text-gilded-amber uppercase">{type}</span>
+                          <span className="font-serif italic text-sm text-center my-auto">{item.title}</span>
+                          <span className="font-meta-tag text-[9px] text-stone-400">{year}</span>
+                        </div>
+                      )}
+
+                      <div className="case-sheen absolute inset-0 pointer-events-none opacity-50"></div>
+                      <div className="spine-fold-gradient absolute inset-y-0 left-0 w-3 pointer-events-none"></div>
+                    </Link>
+
+                    {/* Metadata & Quick Action Strip */}
+                    <div className="flex flex-col pt-3 pb-1 px-1">
+                      <Link to={`/media/${item.id}`}>
+                        <h4 className="font-body-md text-body-md font-medium text-on-surface truncate group-hover:text-primary transition-colors">
+                          {item.title}
+                        </h4>
+                      </Link>
+                      <span className="font-meta-tag text-meta-tag uppercase text-on-surface-variant mt-0.5">
+                        {type.toUpperCase()} {year && `· ${year}`}
+                      </span>
+
+                      {/* Add to History Action Pill */}
+                      <button
+                        type="button"
+                        onClick={(e) => quickLog(e, item)}
+                        disabled={isLogged || isLogging}
+                        className={`mt-3 w-full py-1.5 px-3 rounded-full font-button-text text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all ${
+                          isLogged
+                            ? 'bg-surface-container-high text-secondary border border-outline-variant/60 cursor-default'
+                            : 'bg-primary hover:bg-primary-container text-on-primary shadow-sm active:scale-95'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[14px]">
+                          {isLogged ? 'check' : 'add'}
+                        </span>
+                        <span>{isLogged ? 'In History' : isLogging ? 'Logging…' : 'Add To History'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-20 text-center max-w-md mx-auto space-y-3">
+              <span className="material-symbols-outlined text-secondary text-[40px]">
+                search_off
+              </span>
+              <h3 className="font-headline-sm text-headline-sm text-on-surface font-serif">
+                No Results for "{query}"
+              </h3>
+              <p className="font-body-md text-body-md text-secondary">
+                Try searching for related titles, genres (e.g. "sci-fi", "slow-burn"), or switch media type filters.
+              </p>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="apple-card p-12 rounded-squircle-2xl text-center max-w-md mx-auto space-y-3">
-          <Search className="w-8 h-8 text-apple-textTertiary mx-auto" />
-          <h3 className="text-base font-bold text-white">No Catalog Items Found</h3>
-          <p className="text-xs text-apple-textSecondary">Try searching with broader terms like 'sci-fi', 'drama', or 'romance'.</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

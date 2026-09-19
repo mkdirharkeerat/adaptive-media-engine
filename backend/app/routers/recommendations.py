@@ -12,7 +12,9 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 @router.get("", response_model=RecommendationBatchResponse)
 async def get_recommendations(
-    media_type: Optional[str] = Query(None, description="movie, tv, book, or all"),
+    media_type: Optional[str] = Query(None, description="movie, tv, book, documentary, or all"),
+    content_mode: Optional[str] = Query(None, description="fiction, entertainment, non-fiction, or all"),
+    genre: Optional[str] = Query(None, description="canonical genre id"),
     batch: int = Query(1, ge=1, description="Batch number (fixed 10 per batch, non-infinite scroll)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -26,6 +28,8 @@ async def get_recommendations(
         db=db,
         user_id=current_user.id,
         media_type=media_type if media_type and media_type != "all" else None,
+        content_mode=content_mode if content_mode and content_mode != "all" else None,
+        genre=genre if genre and genre != "all" else None,
         batch_number=batch,
         batch_size=10
     )
@@ -33,7 +37,10 @@ async def get_recommendations(
     return RecommendationBatchResponse(
         batch_number=results["batch_number"],
         media_type=results["media_type"],
+        content_mode=results.get("content_mode"),
+        genre=results.get("genre"),
         items=results["items"],
         has_more=results["has_more"],
-        context_mode=results["context_mode"]
+        context_mode=results["context_mode"],
+        depth_ratio=results.get("depth_ratio"),
     )

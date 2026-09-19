@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from app.config import settings
@@ -29,6 +30,18 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 Base = declarative_base()
+
+def ensure_preference_columns(sync_conn):
+    """Add new preference columns on existing databases (create_all will not alter)."""
+    inspector = inspect(sync_conn)
+    tables = inspector.get_table_names()
+    if "user_preferences" not in tables:
+        return
+    existing = {col["name"] for col in inspector.get_columns("user_preferences")}
+    for name in ("preferred_genres", "pacing_bands", "pacing_by_mode", "content_modes", "content_intent"):
+        if name not in existing:
+            sync_conn.execute(text(f"ALTER TABLE user_preferences ADD COLUMN {name} JSON"))
+
 
 async def get_db():
     async with AsyncSessionLocal() as session:

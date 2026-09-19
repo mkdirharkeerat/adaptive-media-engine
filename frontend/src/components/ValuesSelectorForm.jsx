@@ -1,46 +1,84 @@
-import React, { useState } from 'react';
-import { Sliders, Sparkles, Zap, Clock, ShieldAlert, Globe, Save } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import {
+  CONTENT_INTENTS,
+  GENRES_BY_MODE,
+  PACING_BANDS,
+  SESSION_CONTEXTS,
+  STYLE_AXES,
+  bandsToPacingValue,
+  defaultStyleAxes,
+  splitLegacyContext,
+} from '../data/taxonomy';
 
-export const ValuesSelectorForm = ({ onSaved, isInitial = false }) => {
+const MODE_OPTIONS = [
+  {
+    id: 'fiction',
+    label: 'Fiction',
+    copy: 'Novels, literary film, speculative worlds, character drama.',
+  },
+  {
+    id: 'entertainment',
+    label: 'Entertainment',
+    copy: 'Watch-first movies and series — action, comedy, thrillers, comfort TV.',
+  },
+  {
+    id: 'non-fiction',
+    label: 'Non-fiction',
+    copy: 'Documentaries, essays, science, history, and self-improvement.',
+  },
+];
+
+export const ValuesSelectorForm = ({ onSaved, isInitial = false, initialContentModes }) => {
   const { preferences, setPreferences } = useAuth();
+  const legacy = splitLegacyContext(preferences?.viewing_context || ['casual']);
 
-  const [pacing, setPacing] = useState(preferences?.pacing ?? 0.5);
+  const [contentModes, setContentModes] = useState(
+    initialContentModes?.length
+      ? initialContentModes
+      : preferences?.content_modes?.length
+        ? preferences.content_modes
+        : ['fiction', 'entertainment']
+  );
+  const [preferredGenres, setPreferredGenres] = useState(preferences?.preferred_genres || []);
+  const [pacingBands, setPacingBands] = useState(
+    preferences?.pacing_bands?.length ? preferences.pacing_bands : ['balanced']
+  );
+  const [pacingByMode, setPacingByMode] = useState(preferences?.pacing_by_mode || {});
+  const [usePerModePacing, setUsePerModePacing] = useState(
+    Boolean(preferences?.pacing_by_mode && Object.keys(preferences.pacing_by_mode).length)
+  );
   const [intensity, setIntensity] = useState(preferences?.intensity ?? 0.6);
   const [languageMix, setLanguageMix] = useState(preferences?.language_mix_ok ?? true);
-  
-  const [viewingContext, setViewingContext] = useState(
-    preferences?.viewing_context || ['casual', 'binge']
+  const [sessionContext, setSessionContext] = useState(
+    legacy.session.length ? legacy.session : ['casual']
   );
-
-  const [subGenreValues, setSubGenreValues] = useState(
-    preferences?.sub_genre_values || {
-      romance: 'slow-burn',
-      action: 'raw/gritty',
-      protagonists: 'morally-gray',
-      tone: 'challenging',
-    }
+  const [contentIntent, setContentIntent] = useState(
+    preferences?.content_intent?.length ? preferences.content_intent : legacy.intent
   );
-
+  const [subGenreValues, setSubGenreValues] = useState({
+    ...defaultStyleAxes,
+    ...(preferences?.sub_genre_values || {}),
+  });
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
 
-  const toggleContext = (ctx) => {
-    if (viewingContext.includes(ctx)) {
-      if (viewingContext.length > 1) {
-        setViewingContext(viewingContext.filter((c) => c !== ctx));
-      }
-    } else {
-      setViewingContext([...viewingContext, ctx]);
-    }
-  };
+  const visibleGenreGroups = useMemo(() => {
+    const modes = contentModes.length ? contentModes : ['fiction'];
+    return modes.map((mode) => ({
+      mode,
+      label: MODE_OPTIONS.find((m) => m.id === mode)?.label || mode,
+      genres: GENRES_BY_MODE[mode] || [],
+    }));
+  }, [contentModes]);
 
-  const setSubGenreTag = (category, value) => {
-    setSubGenreValues({
-      ...subGenreValues,
-      [category]: value,
-    });
+  const toggleList = (list, id, minOne = false) => {
+    if (list.includes(id)) {
+      if (minOne && list.length === 1) return list;
+      return list.filter((x) => x !== id);
+    }
+    return [...list, id];
   };
 
   const handleSave = async (e) => {
@@ -49,17 +87,21 @@ export const ValuesSelectorForm = ({ onSaved, isInitial = false }) => {
     setSavedMsg('');
     try {
       const payload = {
-        pacing: parseFloat(pacing),
+        pacing: bandsToPacingValue(pacingBands, 0.5),
         intensity: parseFloat(intensity),
-        viewing_context: viewingContext,
+        viewing_context: sessionContext,
         sub_genre_values: subGenreValues,
         language_mix_ok: languageMix,
+        preferred_genres: preferredGenres,
+        pacing_bands: pacingBands,
+        pacing_by_mode: usePerModePacing ? pacingByMode : {},
+        content_modes: contentModes,
+        content_intent: contentIntent,
       };
-
       const res = await api.put('/preferences', payload);
       setPreferences(res.data);
-      setSavedMsg(`Saved as Version ${res.data.version}`);
-      setTimeout(() => setSavedMsg(''), 3000);
+      setSavedMsg(`Profile Version ${res.data.version} Saved`);
+      setTimeout(() => setSavedMsg(''), 3500);
       if (onSaved) onSaved(res.data);
     } catch (err) {
       console.error('Failed to save preferences:', err);
@@ -68,81 +110,217 @@ export const ValuesSelectorForm = ({ onSaved, isInitial = false }) => {
     }
   };
 
-  const subGenreCategories = [
-    {
-      key: 'romance',
-      label: 'Romance Arc',
-      options: [
-        { id: 'slow-burn', label: 'Slow-Burn & Atmospheric' },
-        { id: 'fast-paced', label: 'Fast-Paced Romance' },
-      ],
-    },
-    {
-      key: 'action',
-      label: 'Action Style',
-      options: [
-        { id: 'raw/gritty', label: 'Raw & Gritty Survival' },
-        { id: 'choreographed', label: 'Choreographed & Stylized' },
-      ],
-    },
-    {
-      key: 'protagonists',
-      label: 'Protagonist Morality',
-      options: [
-        { id: 'morally-gray', label: 'Morally-Gray & Complex' },
-        { id: 'clear-cut', label: 'Clear-Cut Heroic' },
-      ],
-    },
-    {
-      key: 'tone',
-      label: 'Intellectual Tone',
-      options: [
-        { id: 'challenging', label: 'Challenging & Layered' },
-        { id: 'comfort', label: 'Comfort & Uplifting' },
-      ],
-    },
-  ];
+  const toggleGenre = (id) => {
+    setPreferredGenres((prev) => toggleList(prev, id));
+  };
 
-  const contextOptions = [
-    { id: 'binge', label: 'Binge Mode', icon: Zap, desc: 'Deep immersive multi-hour sessions' },
-    { id: 'casual', label: 'Casual Ongoing', icon: Clock, desc: '1 episode / chapter after work' },
-    { id: 'one-off', label: 'One-Off Night', icon: Sparkles, desc: 'Single contained movie or book' },
-  ];
+  const toggleBand = (id, modeKey = null) => {
+    if (modeKey) {
+      setPacingByMode((prev) => {
+        const current = prev[modeKey] || [];
+        return { ...prev, [modeKey]: toggleList(current, id) };
+      });
+      return;
+    }
+    setPacingBands((prev) => {
+      const next = toggleList(prev, id);
+      return next.length ? next : ['balanced'];
+    });
+  };
 
   return (
-    <form onSubmit={handleSave} className="space-y-8">
-      {/* 1. Sub-Genre Preferences */}
-      <div className="apple-card p-7 rounded-squircle-2xl space-y-5">
+    <form onSubmit={handleSave} className="space-y-10">
+      <div className="p-6 sm:p-8 bg-surface-container rounded-2xl border border-outline-variant/60 space-y-5">
         <div>
-          <div className="flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 text-apple-green" />
-            <h3 className="text-base font-bold text-[var(--text-primary)] tracking-tight">
-              Explicit Sub-Genre Values (Hard Prior)
-            </h3>
+          <span className="font-meta-tag text-meta-tag uppercase text-gilded-amber font-semibold tracking-wider">
+            MODE · WHAT YOU WANT
+          </span>
+          <h3 className="font-headline-sm text-headline-sm text-on-surface mt-1">
+            Fiction, entertainment, or non-fiction
+          </h3>
+          <p className="font-body-sm text-body-sm text-secondary mt-1">
+            Separate story, watch-first entertainment, and real-world learning. Pick one or more.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {MODE_OPTIONS.map((mode) => {
+            const selected = contentModes.includes(mode.id);
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => setContentModes((prev) => toggleList(prev, mode.id, true))}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  selected
+                    ? 'bg-primary text-on-primary border-primary shadow-sm'
+                    : 'bg-surface-container-low text-on-surface border-outline-variant/60 hover:bg-surface-container-high'
+                }`}
+              >
+                <span className="font-meta-tag text-meta-tag uppercase font-semibold">{mode.label}</span>
+                <span className={`block font-body-sm text-[12px] mt-1 ${selected ? 'text-on-primary/75' : 'text-secondary'}`}>
+                  {mode.copy}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="p-6 sm:p-8 bg-surface-container rounded-2xl border border-outline-variant/60 space-y-6">
+        <div>
+          <span className="font-meta-tag text-meta-tag uppercase text-gilded-amber font-semibold tracking-wider">
+            GENRES · MULTI-SELECT
+          </span>
+          <h3 className="font-headline-sm text-headline-sm text-on-surface mt-1">
+            Canonical genres for the modes you chose
+          </h3>
+          <p className="font-body-sm text-body-sm text-secondary mt-1">
+            Optional. Leave empty if you do not want a genre prior.
+          </p>
+        </div>
+        {visibleGenreGroups.map((group) => (
+          <div key={group.mode} className="space-y-2">
+            <span className="font-meta-label text-meta-label uppercase text-on-surface-variant tracking-wider block">
+              {group.label}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {group.genres.map((opt) => {
+                const selected = preferredGenres.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => toggleGenre(opt.id)}
+                    className={`px-4 py-2 rounded-full font-meta-tag text-meta-tag uppercase transition-all ${
+                      selected
+                        ? 'bg-primary text-on-primary font-bold'
+                        : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant/60'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Guides candidate generation so recommendations never stray outside your genuine interest bounds.
+        ))}
+      </div>
+
+      <div className="p-6 sm:p-8 bg-surface-container rounded-2xl border border-outline-variant/60 space-y-6">
+        <div>
+          <span className="font-meta-tag text-meta-tag uppercase text-gilded-amber font-semibold tracking-wider">
+            PACING & INTENSITY
+          </span>
+          <h3 className="font-headline-sm text-headline-sm text-on-surface mt-1">
+            Named cadence bands
+          </h3>
+          <p className="font-body-sm text-body-sm text-secondary mt-1">
+            Choose one or more bands. Optionally set different pacing for fiction vs entertainment.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {subGenreCategories.map((cat) => (
-            <div key={cat.key} className="bg-black/5 dark:bg-white/[0.03] p-4 rounded-squircle border border-[var(--border-color)] space-y-2.5">
-              <label className="text-xs font-semibold text-[var(--text-primary)] block">
+        <div className="flex flex-wrap gap-2">
+          {PACING_BANDS.map((band) => {
+            const selected = pacingBands.includes(band.id);
+            return (
+              <button
+                key={band.id}
+                type="button"
+                onClick={() => toggleBand(band.id)}
+                className={`px-4 py-2 rounded-full font-meta-tag text-meta-tag uppercase transition-all ${
+                  selected
+                    ? 'bg-primary text-on-primary font-bold'
+                    : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/60'
+                }`}
+              >
+                {band.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setUsePerModePacing((v) => !v)}
+          className="font-meta-tag text-meta-tag uppercase text-gilded-amber hover:underline"
+        >
+          {usePerModePacing ? 'Use one pacing set for all modes' : 'Use different pacing per mode'}
+        </button>
+
+        {usePerModePacing &&
+          contentModes.map((mode) => (
+            <div key={mode} className="space-y-2">
+              <span className="font-meta-label text-meta-label uppercase text-on-surface-variant tracking-wider block">
+                {mode} pacing
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {PACING_BANDS.map((band) => {
+                  const selected = (pacingByMode[mode] || []).includes(band.id);
+                  return (
+                    <button
+                      key={`${mode}-${band.id}`}
+                      type="button"
+                      onClick={() => toggleBand(band.id, mode)}
+                      className={`px-3 py-1.5 rounded-full font-meta-tag text-[10px] uppercase transition-all ${
+                        selected
+                          ? 'bg-primary text-on-primary font-bold'
+                          : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/60'
+                      }`}
+                    >
+                      {band.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+        <div className="space-y-3 pt-2">
+          <div className="flex items-baseline justify-between font-meta-label text-meta-label uppercase">
+            <span className="text-on-surface font-semibold tracking-wider">Content intensity</span>
+            <span className="text-gilded-amber font-mono">
+              {intensity < 0.35 ? 'Light & restorative' : intensity > 0.7 ? 'Visceral & heavy' : 'Moderate gravitas'} ({Math.round(intensity * 100)}%)
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={intensity}
+            onChange={(e) => setIntensity(e.target.value)}
+            className="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary"
+          />
+        </div>
+      </div>
+
+      <div className="p-6 sm:p-8 bg-surface-container rounded-2xl border border-outline-variant/60 space-y-6">
+        <div>
+          <span className="font-meta-tag text-meta-tag uppercase text-gilded-amber font-semibold tracking-wider">
+            STYLE AXES · OPTIONAL
+          </span>
+          <h3 className="font-headline-sm text-headline-sm text-on-surface mt-1">
+            Tone modifiers (skipped when set to doesn&apos;t matter)
+          </h3>
+        </div>
+        <div className="space-y-5">
+          {STYLE_AXES.map((cat) => (
+            <div key={cat.key} className="space-y-2">
+              <span className="font-meta-label text-meta-label uppercase text-on-surface-variant tracking-wider block">
                 {cat.label}
-              </label>
-              <div className="grid grid-cols-2 gap-2 apple-segmented-pill p-1 rounded-squircle-sm">
+              </span>
+              <div className="flex flex-wrap gap-2.5">
                 {cat.options.map((opt) => {
-                  const isSelected = subGenreValues[cat.key] === opt.id;
+                  const isSelected = (subGenreValues[cat.key] || 'any') === opt.id;
                   return (
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => setSubGenreTag(cat.key, opt.id)}
-                      className={`py-2 px-2.5 rounded-squircle-sm text-xs font-semibold text-center transition-all ${
+                      onClick={() => setSubGenreValues({ ...subGenreValues, [cat.key]: opt.id })}
+                      className={`px-4 py-2 rounded-full font-meta-tag text-meta-tag uppercase transition-all ${
                         isSelected
-                          ? 'bg-[var(--pill-active-bg)] text-[var(--pill-active-text)] shadow-apple-subtle font-bold'
-                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                          ? 'bg-primary text-on-primary font-bold'
+                          : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/60'
                       }`}
                     >
                       {opt.label}
@@ -155,151 +333,107 @@ export const ValuesSelectorForm = ({ onSaved, isInitial = false }) => {
         </div>
       </div>
 
-      {/* 2. Sliders */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="apple-card p-6 rounded-squircle-2xl space-y-4">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-[var(--text-primary)] flex items-center space-x-2">
-              <Sliders className="w-3.5 h-3.5 text-apple-blue" />
-              <span>Pacing Preference</span>
-            </label>
-            <span className="text-xs text-apple-blue font-mono font-semibold">
-              {pacing < 0.35 ? 'Slow & Atmospheric' : pacing > 0.65 ? 'Fast & Plot-Driven' : 'Balanced Mid-Tempo'}
-            </span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={pacing}
-            onChange={(e) => setPacing(e.target.value)}
-            className="w-full"
-          />
-          <div className="flex justify-between text-[10px] text-[var(--text-tertiary)] font-mono">
-            <span>Slow & Atmospheric</span>
-            <span>Fast & Plot-Driven</span>
-          </div>
-        </div>
-
-        <div className="apple-card p-6 rounded-squircle-2xl space-y-4">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-[var(--text-primary)] flex items-center space-x-2">
-              <ShieldAlert className="w-3.5 h-3.5 text-apple-orange" />
-              <span>Content Intensity</span>
-            </label>
-            <span className="text-xs text-apple-orange font-mono font-semibold">
-              {intensity < 0.35 ? 'Light & Gentle' : intensity > 0.65 ? 'Dark & Heavy' : 'Moderate'}
-            </span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={intensity}
-            onChange={(e) => setIntensity(e.target.value)}
-            className="w-full"
-          />
-          <div className="flex justify-between text-[10px] text-[var(--text-tertiary)] font-mono">
-            <span>Light / Gentle</span>
-            <span>Dark / Heavy</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Viewing Context */}
-      <div className="apple-card p-7 rounded-squircle-2xl space-y-4">
+      <div className="p-6 sm:p-8 bg-surface-container rounded-2xl border border-outline-variant/60 space-y-6">
         <div>
-          <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4 text-apple-indigo" />
-            <h3 className="text-base font-bold text-[var(--text-primary)] tracking-tight">
-              Consumption Context (Multi-Select)
-            </h3>
-          </div>
-          <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Classifies active context delivery between deep binge sessions and daily casual cadences.
-          </p>
+          <span className="font-meta-tag text-meta-tag uppercase text-gilded-amber font-semibold tracking-wider">
+            SESSION · HOW YOU CONSUME
+          </span>
+          <h3 className="font-headline-sm text-headline-sm text-on-surface mt-1">
+            Delivery cadence
+          </h3>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {contextOptions.map((ctx) => {
-            const isSelected = viewingContext.includes(ctx.id);
-            const Icon = ctx.icon;
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {SESSION_CONTEXTS.map((ctx) => {
+            const isSelected = sessionContext.includes(ctx.id);
             return (
               <button
                 key={ctx.id}
                 type="button"
-                onClick={() => toggleContext(ctx.id)}
-                className={`p-4 rounded-squircle-lg border text-left flex flex-col justify-between transition-all active:scale-[0.98] ${
+                onClick={() => setSessionContext((prev) => toggleList(prev, ctx.id, true))}
+                className={`p-4 rounded-xl border text-left transition-all ${
                   isSelected
-                    ? 'bg-apple-blue text-white border-apple-blue shadow-apple-blue-glow'
-                    : 'bg-black/5 dark:bg-white/[0.03] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-black/20 dark:hover:border-white/20'
+                    ? 'bg-primary text-on-primary border-primary'
+                    : 'bg-surface-container-low text-on-surface border-outline-variant/60'
                 }`}
               >
-                <div className="flex items-center space-x-2 mb-2">
-                  <Icon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-apple-indigo'}`} />
-                  <span className="text-xs font-bold">{ctx.label}</span>
-                </div>
-                <span className={`text-[11px] ${isSelected ? 'text-white/85' : 'text-[var(--text-tertiary)]'}`}>
-                  {ctx.desc}
+                <span className="font-meta-tag text-meta-tag uppercase font-semibold">{ctx.label}</span>
+                <span className={`block font-body-sm text-[12px] mt-0.5 ${isSelected ? 'text-on-primary/70' : 'text-secondary'}`}>
+                  {ctx.hint}
                 </span>
               </button>
             );
           })}
         </div>
-      </div>
 
-      {/* 4. Language Switch */}
-      <div className="apple-card p-6 rounded-squircle-2xl flex items-center justify-between">
-        <div className="flex items-start space-x-3.5">
-          <div className="p-2 rounded-full bg-apple-blue/15 text-apple-blue mt-0.5">
-            <Globe className="w-4 h-4" />
+        {contentModes.includes('non-fiction') && (
+          <div className="space-y-3 pt-2 border-t border-outline-variant/40">
+            <span className="font-meta-label text-meta-label uppercase text-on-surface-variant tracking-wider block">
+              Non-fiction intent
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {CONTENT_INTENTS.map((intent) => {
+                const selected = contentIntent.includes(intent.id);
+                return (
+                  <button
+                    key={intent.id}
+                    type="button"
+                    onClick={() => setContentIntent((prev) => toggleList(prev, intent.id))}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      selected
+                        ? 'bg-primary text-on-primary border-primary'
+                        : 'bg-surface-container-low text-on-surface border-outline-variant/60'
+                    }`}
+                  >
+                    <span className="font-meta-tag text-meta-tag uppercase font-semibold">{intent.label}</span>
+                    <span className={`block font-body-sm text-[12px] mt-0.5 ${selected ? 'text-on-primary/70' : 'text-secondary'}`}>
+                      {intent.hint}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-semibold text-[var(--text-primary)] block">
-              Multi-Language & Colloquial Slang Reasoning
-            </label>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Enables the LLM to comprehend multilingual reviews, mixed cultural idioms, and slang.
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setLanguageMix(!languageMix)}
-          className={`w-12 h-7 flex items-center rounded-full p-1 transition-colors ${
-            languageMix ? 'bg-apple-green shadow-apple-glow' : 'bg-black/20 dark:bg-white/20'
-          }`}
-        >
-          <div
-            className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform ${
-              languageMix ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* Save Button */}
-      <div className="flex items-center justify-between pt-2">
-        {savedMsg ? (
-          <span className="text-xs text-apple-green font-mono font-semibold animate-pulse">
-            ✓ {savedMsg}
-          </span>
-        ) : (
-          <span className="text-xs text-[var(--text-tertiary)] font-mono">
-            Every update increments preference version for auditability.
-          </span>
         )}
 
+        <div className="pt-4 border-t border-outline-variant/40 flex items-center justify-between">
+          <div className="flex flex-col pr-4">
+            <span className="font-meta-label text-meta-label uppercase text-on-surface tracking-wider font-semibold">
+              Mixed language & dialect
+            </span>
+            <span className="font-body-sm text-body-sm text-secondary mt-0.5">
+              Allow cross-lingual titles and untranslated dialogue.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLanguageMix(!languageMix)}
+            className={`w-12 h-6 rounded-full transition-colors relative shrink-0 p-0.5 ${
+              languageMix ? 'bg-primary' : 'bg-surface-container-highest'
+            }`}
+          >
+            <div
+              className={`w-5 h-5 rounded-full bg-surface-bright shadow-sm transform transition-transform ${
+                languageMix ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col items-center gap-3 pt-2">
         <button
           type="submit"
           disabled={saving}
-          className="px-7 py-3 rounded-full bg-apple-blue hover:bg-apple-blueHover text-white text-xs font-bold shadow-apple-blue-glow transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95"
+          className="w-full sm:max-w-md py-4 px-8 rounded-full bg-primary hover:bg-primary-container text-on-primary font-button-text text-button-text uppercase tracking-widest shadow-md transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          <Save className="w-3.5 h-3.5" />
-          <span>{saving ? 'Saving...' : isInitial ? 'Complete Selection' : 'Save Preference Version'}</span>
+          <span className="material-symbols-outlined text-[16px]">bookmark</span>
+          <span>{saving ? 'Saving values...' : isInitial ? 'Save boundaries & enter library' : 'Persist versioned preferences'}</span>
         </button>
+        {savedMsg && (
+          <span className="font-meta-tag text-meta-tag uppercase text-gilded-amber font-semibold">
+            ✓ {savedMsg}
+          </span>
+        )}
       </div>
     </form>
   );

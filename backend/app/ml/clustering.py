@@ -9,7 +9,9 @@ SUB_GENRE_MAP = {
     2: "Introspective Character Study & Slice of Life",
     3: "Kinetic Survival Action & High-Octane Thrillers",
     4: "Hard Science, Macro-Civilization & Cosmic Mysteries",
-    5: "Subversive Dark Satire, Absurdist & Witty Comedy"
+    5: "Subversive Dark Satire, Absurdist & Witty Comedy",
+    6: "Documentary, Investigative & Real-World Non-Fiction",
+    7: "Self-Improvement, Psychology & Personal Mastery",
 }
 
 def evaluate_optimal_clusters(embeddings: List[List[float]], max_k: int = 6) -> Dict[str, Any]:

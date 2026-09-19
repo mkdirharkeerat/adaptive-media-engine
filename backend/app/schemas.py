@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -25,19 +25,42 @@ class UserResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 # --- User Preferences (Feature 1 - Values Selector) ---
+def _none_to_list(v):
+    return v or []
+
+
+def _none_to_dict(v):
+    return v or {}
+
+
 class UserPreferenceBase(BaseModel):
     sub_genre_values: Dict[str, str] = Field(
         default_factory=lambda: {
-            "romance": "slow-burn",
-            "action": "raw/gritty",
-            "protagonists": "morally-gray",
-            "tone": "challenging"
+            "romance": "any",
+            "action": "any",
+            "protagonists": "any",
+            "tone": "any"
         }
     )
     pacing: float = Field(0.5, ge=0.0, le=1.0)
-    viewing_context: List[str] = Field(default_factory=lambda: ["casual", "binge"])
+    viewing_context: List[str] = Field(default_factory=lambda: ["casual"])
     intensity: float = Field(0.6, ge=0.0, le=1.0)
     language_mix_ok: bool = True
+    preferred_genres: List[str] = Field(default_factory=list)
+    pacing_bands: List[str] = Field(default_factory=lambda: ["balanced"])
+    pacing_by_mode: Dict[str, List[str]] = Field(default_factory=dict)
+    content_modes: List[str] = Field(default_factory=lambda: ["fiction", "entertainment"])
+    content_intent: List[str] = Field(default_factory=list)
+
+    @field_validator("preferred_genres", "pacing_bands", "content_modes", "content_intent", "viewing_context", mode="before")
+    @classmethod
+    def coerce_list(cls, v):
+        return _none_to_list(v)
+
+    @field_validator("pacing_by_mode", "sub_genre_values", mode="before")
+    @classmethod
+    def coerce_dict(cls, v):
+        return _none_to_dict(v)
 
 class UserPreferenceUpdate(UserPreferenceBase):
     pass
@@ -122,13 +145,19 @@ class RecommendationResponse(BaseModel):
     preference_version: int
     batch_number: int = 1
     media_item: MediaItemResponse
+    match_reasons: List[str] = Field(default_factory=list)
+    content_modes: List[str] = Field(default_factory=list)
+    canonical_genres: List[str] = Field(default_factory=list)
 
 class RecommendationBatchResponse(BaseModel):
     batch_number: int
     media_type: Optional[str] = None
+    content_mode: Optional[str] = None
+    genre: Optional[str] = None
     items: List[RecommendationResponse]
     has_more: bool = True
     context_mode: Optional[str] = None
+    depth_ratio: Optional[float] = None
 
 # --- Feedback (Feature 8 - Online Nudge) ---
 class FeedbackCreate(BaseModel):

@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import engine, Base
+from app.database import engine, Base, ensure_preference_columns
 from app.routers import auth, preferences, history, recommendations, feedback, media, ml_lab
 from app.seed import seed_database
 
@@ -12,6 +12,7 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(ensure_preference_columns)
         await seed_database()
     except Exception as e:
         print(f"[Main Lifespan] Startup notification: {e}")

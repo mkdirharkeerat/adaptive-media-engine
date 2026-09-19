@@ -78,8 +78,8 @@ def main():
     lora_res = lora_trainer.train_lora(epochs=15, lr=1e-3)
     print(f"  ✓ Adapter Architecture: Low-Rank Projection (Rank {lora_res['adapter_rank']})", flush=True)
     print(f"  ✓ Loss Objective: {lora_res['loss_function']}", flush=True)
-    print(f"  ✓ Initial Loss: {lora_res['initial_loss']:.5f} ➔ Final Loss: {lora_res['final_loss']:.5f}", flush=True)
-    print(f"  ✓ Loss Reduction: {((lora_res['initial_loss'] - lora_res['final_loss']) / lora_res['initial_loss'] * 100):.1f}%", flush=True)
+    reduction = ((lora_res['initial_loss'] - lora_res['final_loss']) / lora_res['initial_loss'] * 100) if lora_res['initial_loss'] > 0 else 0.0
+    print(f"  ✓ Loss Reduction: {reduction:.1f}%", flush=True)
 
     print_header("All 4 Machine Learning Models Successfully Trained & Persisted to Disk!")
 

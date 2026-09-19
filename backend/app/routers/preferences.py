@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models import User, UserPreference
 from app.schemas import UserPreferenceUpdate, UserPreferenceResponse
 from app.auth import get_current_user
+from app.preference_defaults import DEFAULT_PREFERENCE_FIELDS, preference_kwargs_from_update
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
 
@@ -27,16 +28,7 @@ async def get_preferences(
         pref = UserPreference(
             user_id=current_user.id,
             version=1,
-            sub_genre_values={
-                "romance": "slow-burn",
-                "action": "raw/gritty",
-                "protagonists": "morally-gray",
-                "tone": "challenging"
-            },
-            pacing=0.5,
-            viewing_context=["casual", "binge"],
-            intensity=0.6,
-            language_mix_ok=True
+            **DEFAULT_PREFERENCE_FIELDS
         )
         db.add(pref)
         await db.commit()
@@ -67,11 +59,7 @@ async def update_preferences(
     new_pref = UserPreference(
         user_id=current_user.id,
         version=new_version,
-        sub_genre_values=pref_in.sub_genre_values,
-        pacing=pref_in.pacing,
-        viewing_context=pref_in.viewing_context,
-        intensity=pref_in.intensity,
-        language_mix_ok=pref_in.language_mix_ok
+        **preference_kwargs_from_update(pref_in)
     )
     db.add(new_pref)
     await db.commit()

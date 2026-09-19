@@ -24,8 +24,20 @@ frontend/dist/
 *.zip
 *.tar.gz
 *.db
+*.db.bak
+*.bak
 *.sqlite3
 06_capstone/models/v_*/
+/data/
+/saved_models/
+
+# Scratch, Testing & Reference Artifacts
+.impeccable/
+frontend/.playwright-cli/
+brag-output/
+carollia.*
+stitch_adaptive_media_shelf_ui/
+
 
 # Environment Variables & Secrets
 .env

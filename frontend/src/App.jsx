@@ -18,8 +18,13 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
-        <div className="w-9 h-9 border-2 border-apple-green border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="font-meta-tag text-meta-tag uppercase text-secondary tracking-widest">
+            Loading Adaptive Media Engine…
+          </span>
+        </div>
       </div>
     );
   }
@@ -36,15 +41,15 @@ export const App = () => {
     <ThemeProvider>
       <Router>
         <AuthProvider>
-          <div className="min-h-screen flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-apple-blue/20 selection:text-apple-blue transition-colors duration-300">
+          <div className="min-h-screen flex flex-col bg-surface text-on-surface transition-colors duration-300">
             <Navbar />
             <main className="flex-1">
               <Routes>
-                {/* Public Routes */}
+                {/* Public Authentication Routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
 
-                {/* Protected Routes */}
+                {/* Protected Engine Routes */}
                 <Route
                   path="/"
                   element={
@@ -107,9 +112,25 @@ export const App = () => {
               </Routes>
             </main>
 
-            {/* Minimal Clean Footer */}
-            <footer className="apple-liquid-nav border-t border-[var(--border-color)] py-4 px-6 text-center text-xs text-[var(--text-tertiary)] font-mono transition-colors">
-              Adaptive Media Recommendation • Genuine Taste & Depth Signals • Zero Dark Patterns
+            {/* Adaptive Media Engine Editorial Footer */}
+            <footer className="w-full bg-surface-container-low border-t border-outline-variant/50 py-10 mt-16 transition-colors">
+              <div className="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex flex-col gap-1 text-center md:text-left">
+                  <span className="font-meta-tag text-meta-tag uppercase text-on-surface-variant font-semibold tracking-wider">
+                    ADAPTIVE MEDIA ENGINE • CITATION PROTOCOL
+                  </span>
+                  <p className="font-body-sm text-body-sm text-secondary">
+                    Transparent attribution and bias-minimized recommendation matrices across narrative forms.
+                  </p>
+                </div>
+                <div className="flex items-center gap-6 font-meta-tag text-meta-tag uppercase text-on-surface-variant">
+                  <span>Audited Metrics</span>
+                  <span>•</span>
+                  <span>PgVector Schema</span>
+                  <span>•</span>
+                  <span>Zero Dark Patterns</span>
+                </div>
+              </div>
             </footer>
           </div>
         </AuthProvider>
